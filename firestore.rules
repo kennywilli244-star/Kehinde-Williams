@@ -1,0 +1,80 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_-]+$');
+    }
+
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == 'kennywilli244@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+
+    function isValidCategory(cat) {
+      return cat == 'Website Design' || cat == 'Graphic Design' || cat == 'Video Editing' || cat == 'AI Automation';
+    }
+
+    function isValidProject(data) {
+      return data.keys().hasAll(['title', 'category', 'websiteUrl', 'description', 'imageUrl', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['title', 'category', 'websiteUrl', 'description', 'imageUrl', 'createdAt', 'updatedAt'])
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 120
+        && data.category is string && isValidCategory(data.category)
+        && data.websiteUrl is string && data.websiteUrl.size() <= 500
+        && data.description is string && data.description.size() >= 1 && data.description.size() <= 2000
+        && data.imageUrl is string && data.imageUrl.size() >= 1 && data.imageUrl.size() <= 600000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidTestimonial(data) {
+      return data.keys().hasAll(['clientName', 'role', 'service', 'quote', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['clientName', 'role', 'service', 'quote', 'createdAt', 'updatedAt'])
+        && data.clientName is string && data.clientName.size() >= 1 && data.clientName.size() <= 100
+        && data.role is string && data.role.size() >= 1 && data.role.size() <= 120
+        && data['service'] is string && isValidCategory(data['service'])
+        && data.quote is string && data.quote.size() >= 1 && data.quote.size() <= 1200
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    match /projects/{projectId} {
+      allow get: if isValidId(projectId);
+      allow list: if true;
+      allow create: if isAdmin()
+        && isValidId(projectId)
+        && isValidProject(request.resource.data)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if isAdmin()
+        && isValidId(projectId)
+        && isValidProject(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'category', 'websiteUrl', 'description', 'imageUrl', 'updatedAt']);
+      allow delete: if isAdmin() && isValidId(projectId);
+    }
+
+    match /testimonials/{testimonialId} {
+      allow get: if isValidId(testimonialId);
+      allow list: if true;
+      allow create: if isAdmin()
+        && isValidId(testimonialId)
+        && isValidTestimonial(request.resource.data)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if isAdmin()
+        && isValidId(testimonialId)
+        && isValidTestimonial(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clientName', 'role', 'service', 'quote', 'updatedAt']);
+      allow delete: if isAdmin() && isValidId(testimonialId);
+    }
+  }
+}
